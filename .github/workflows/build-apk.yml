@@ -1,0 +1,65 @@
+
+name: Build RH PRO RACING TIMER APK
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'RH_PRO_RACING_TIMER_v3_compat.zip'
+      - '.github/workflows/build-apk.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Extract Android project ZIP
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y unzip
+          ZIP_FILE="RH_PRO_RACING_TIMER_v3_compat.zip"
+          if [ ! -f "$ZIP_FILE" ]; then
+            echo "ZIP project belum diunggah ke repository."
+            exit 1
+          fi
+          mkdir -p source
+          unzip -o "$ZIP_FILE" -d source
+          find source -maxdepth 4 -type f | head -100
+
+      - name: Locate Gradle project
+        run: |
+          SETTINGS=$(find source -type f \( -name settings.gradle -o -name settings.gradle.kts \) | head -1)
+          if [ -z "$SETTINGS" ]; then
+            echo "File settings.gradle tidak ditemukan."
+            exit 1
+          fi
+          PROJECT_DIR=$(dirname "$SETTINGS")
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+          if [ ! -f "$PROJECT_DIR/gradlew" ]; then
+            echo "Gradle Wrapper tidak ditemukan."
+            exit 1
+          fi
+          chmod +x "$PROJECT_DIR/gradlew"
+
+      - name: Build debug APK
+        run: |
+          cd "$PROJECT_DIR"
+          ./gradlew assembleDebug --stacktrace
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: RH-PRO-RACING-TIMER-APK
+          path: source/**/build/outputs/apk/**/*.apk
+          if-no-files-found: error
